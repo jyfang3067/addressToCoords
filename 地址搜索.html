@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <title>批量获取模糊搜索地址名称及坐标</title>
+  <meta name="Keywords" content="批量,获取坐标,模糊搜索">
+  <meta name="Description" content="本网页提供了批量搜索地名并返回地址及坐标的功能！">
+  <script type="text/javascript" src="address_src.js"></script>
+  <script type="text/javascript" src="http://api.map.baidu.com/api?v=1.2"></script>
+  <style type="text/css">
+    body {
+      background-color: #fdfcf8;
+    }
+
+    .title {
+      background-color: lightslategray;
+      font-weight: bold;
+      font-size: x-large;
+      margin: 0;
+      color: white;
+      padding: 10px;
+    }
+
+    #bzDiv {
+      font-size: 10px;
+      color: red;
+      margin-top: -15px;
+    }
+
+    #txtCity {
+      height: 25px;
+      border-radius: 3px;
+      margin-left: 10px;
+    }
+
+    #cityDiv {
+      margin-top: 18px;
+    }
+
+
+    #areaDiv {
+      position: flex;
+    }
+
+    .textArea {
+      flex-wrap: wrap;
+      flex-shrink: 1;
+    }
+    .btn{
+      border: none;
+    display: inline-block;
+    outline: 0;
+    padding: 8px 18px;
+    margin-top: 15px;
+    vertical-align: middle;
+    overflow: hidden;
+    color: #fff;
+    background-color: #e9686b;
+    text-align: center;
+    transition: .2s ease-out;
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow: 0px 2px 6px rgb(0 0 0 / 12%), 0px 1px 2px rgb(0 0 0 / 24%);
+    font-family: '微软雅黑';
+    border-radius: 2px;
+    }.btn:hover {
+    background-color: #ba3537;
+    color: #fff;
+    text-decoration: none;
+}
+  </style>
+</head>
+
+<body>
+  <P class="title">地址--坐标转换</P>
+  <div id="cityDiv">默认搜索城市<input id="txtCity" type="text" value="广州市" /></div></br>
+  <div>输入地名关键词</div></br>
+  <div id="bzDiv">有多个地址时，<span style="font-weight: bold">输入的地址间用;隔开，地址前加序号并换行</span></div>
+  <div id="areaDiv">
+    <textarea class="textArea" id="txtSearch" rows="30" cols="50" value="" /></textarea>
+    <textarea class="textArea" id="txtResult" rows="30" cols="50" value="" /></textarea></br>
+  </div>
+  <button class="btn" style="margin-top: 20px;margin-left: 600px;" onclick="initSearch()">生成坐标序列</button> </br>
+  <span style="font-size: 12px;color:red">例子:</br>
+    1,广州市天河南一路1号;</br>2,广州市体育东路;</br>
+    注：返回的坐标为WGS86坐标。</span>
+  </span>
+  <div id="divMap" style="display: none"></div>
+  <script type="text/javascript">
+    function $(id) {
+      return document.getElementById(id); //定义$,以便调用  
+    }
+    var map = new BMap.Map("divMap"); //创建地图  
+    map.enableScrollWheelZoom();
+    var city = new BMap.LocalSearch(map, {
+      renderOptions: {
+        map: map,
+        autoViewport: true
+      }
+    });
+
+    var count = ""; //地址个数，地址按中文分号隔开
+    var i = 0;
+    var index = 0;
+    let addresses = [];
+    var result = "";
+    let cityStr = $("txtCity").value || "广州市";
+    city.search(cityStr);
+
+    function initSearch() {
+      i = 0;
+      addresses = [];
+      result = "";
+      cityStr = $("txtCity").value || "广州市";
+      city.search(cityStr);
+      search()
+    }
+
+    function search() {
+      if (i == 0) {
+        cityStr = $("txtCity").value;
+        city.search(cityStr);
+        $("txtResult").value = "" //每次生成前清空文本域  
+        map.clearOverlays(); //清除地图上所有标记  
+
+        let addressStrs = $("txtSearch").value;
+        if (addressStrs.indexOf(";") > -1) {
+          addresses = addressStrs.split(";");
+        } else {
+          searchSingleAddr(cityStr, addressStrs)
+          return;
+        }
+        count = addresses.length;
+      }
+      var address = addresses[i];
+      //判断在哪个城市
+      if (address) {
+        if (address.indexOf(',') > -1) {
+          index = address.split(',')[0];
+          address = address.split(',')[1];
+        }
+        if (address.indexOf(':') > -1) {
+          index = address.split(':')[0];
+          address = address.split(':')[1];
+        }
+        if (address) {
+          //执行查询
+          try {
+            var ls = new BMap.LocalSearch(cityStr);
+            ls.search(address);
+            ls.setSearchCompleteCallback(function (rs) {
+              if (ls.getStatus() == BMAP_STATUS_SUCCESS) {
+                var poi = rs.getPoi(0);
+                if (poi) {
+                  var pos_84 = bd09_To_Gps84(poi.point.lat, poi.point.lng);
+
+                  const add = poi.address + poi.title;
+                  var infoWindow = new BMap.InfoWindow(add);
+                  var marker = new BMap.Marker(poi.point)
+                
+                  console.log(index, add + ":baidu:" + poi.point.lng + "," + poi.point
+                    .lat +
+                    ';wgs84:' + pos_84[1] + "," + pos_84[0])
+                  result += index + ":" + add + ":" + pos_84[1] + "," + pos_84[0];
+                  // result +=  pos_84[1] + "," + pos_84[0]+ '\n';
+
+                } else {
+                  result += index + ':';
+                }
+              } else {
+                result += index + ':';
+              }
+              $("txtResult").value = result;
+              doSearch();
+            })
+          } catch (e) {
+            console.log('error', index);
+            result += index + ':';
+            doSearch();
+          }
+        } else {
+          result += index + ':';
+          doSearch();
+        }
+      } else {
+        result += index + ':';
+        doSearch();
+      }
+
+
+    }
+
+    function doSearch() {
+
+      if (i < count - 1) {
+        i++;
+        setTimeout("search()", 100);
+      } else {
+        clear();
+        alert('转换完成！')
+      }
+    }
+
+    function clear() {
+      i = 0;
+      addresses = [];
+      result = "";
+    }
+
+    function searchSingleAddr(cityStr, address) {
+      var a = 1;
+      var ls = new BMap.LocalSearch(cityStr);
+      ls.search(address);
+      ls.setSearchCompleteCallback(function (rs) {
+        if (ls.getStatus() == BMAP_STATUS_SUCCESS) {
+          for (j = 0; j < rs.getCurrentNumPois(); j++) {
+            var poi = rs.getPoi(j);
+            var pos_84 = bd09_To_Gps84(poi.point.lat, poi.point.lng);
+
+            const add = poi.address + poi.title;
+            var infoWindow = new BMap.InfoWindow(add);
+            var marker = new BMap.Marker(poi.point)
+         
+            console.log(j + 1, add + ":baidu:" + poi.point.lng + "," + poi.point
+              .lat +
+              ';wgs84:' + pos_84[1] + "," + pos_84[0])
+            result += j + 1 + ":" + add + ":" + pos_84[1] + "," + pos_84[0] + ';\n';
+          }
+          if (rs.getPageIndex != rs.getNumPages()) {
+            ls.gotoPage(a);
+            a = a + 1;
+          }
+          $("txtResult").value = result;
+        }
+      })
+    }
+
+
+
+    // var ls = new BMap.LocalSearch(c);
+    // ls.search(s);
+    // var i = 1;
+    // var result = "";
+    // ls.setSearchCompleteCallback(function (rs) {
+    //     if (ls.getStatus() == BMAP_STATUS_SUCCESS) {
+    //         for (j = 0; j < rs.getCurrentNumPois(); j++) {
+    //             var poi = rs.getPoi(j);
+    //             map.addOverlay(new BMap.Marker(poi.point)); //如果查询到，则添加红色marker  
+    //             // $("txtResult").value+= poi.title+"(" +poi.point.lng+","+poi.point.lat+')\n';  
+    //             result += poi.title + "(" + poi.point.lng + "," + poi.point.lat + ')\n';
+    //         }
+    //         if (rs.getPageIndex != rs.getNumPages()) {
+    //             ls.gotoPage(i);
+    //             i = i + 1;
+    //         }
+    //         $("txtResult").value = result;
+    //     }
+    // });
+  </script>
+</body>
+
+</html>
